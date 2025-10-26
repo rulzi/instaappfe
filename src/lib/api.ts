@@ -230,14 +230,14 @@ class ApiClient {
   }
 
   async createComment(commentData: CreateCommentRequest): Promise<ApiResponse<Comment>> {
-    return this.request<Comment>(`${API_CONFIG.ENDPOINTS.POSTS}/${commentData.post_id}/comments`, {
+    return this.request<Comment>(`${API_CONFIG.ENDPOINTS.POSTS}/${commentData.post_id}/comment`, {
       method: 'POST',
       body: JSON.stringify({ content: commentData.content }),
     });
   }
 
   async getPostComments(postId: number): Promise<ApiResponse<Comment[]>> {
-    return this.request<Comment[]>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/comments`);
+    return this.request<Comment[]>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/comment`);
   }
 }
 
