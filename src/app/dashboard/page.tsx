@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatDistanceToNow } from 'date-fns';
 import SafeImage from '@/components/SafeImage';
+import PostForm from '@/components/PostForm';
 import { apiClient } from '@/lib/api';
 import { Post, Comment } from '@/config/api';
 
@@ -158,11 +160,10 @@ export default function DashboardPage() {
       post_id: postId,
       user_id: user.user.id,
       content: commentText,
-      created_at: new Date().toISOString(),
+      created_at: new Date().getTime(),
       user: {
         id: user.user.id,
         name: user.user.name,
-        username: user.user.name.toLowerCase().replace(/\s+/g, '_'),
       }
     };
 
@@ -231,6 +232,11 @@ export default function DashboardPage() {
 
   const handleCommentChange = (postId: number, value: string) => {
     setNewComment({ ...newComment, [postId]: value });
+  };
+
+  const handlePostCreated = () => {
+    // Refresh posts after creating a new one
+    fetchPosts();
   };
 
   if (isLoading) {
@@ -308,6 +314,12 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Post Creation Form */}
+        <PostForm 
+          onPostCreated={handlePostCreated}
+          onError={setError}
+        />
+
         {/* Instagram-like Feed */}
         <div className="space-y-6">
           {Array.isArray(posts) && posts.length > 0 ? posts.map((post) => (
@@ -325,7 +337,9 @@ export default function DashboardPage() {
                 />
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900">{post.user.name}</h3>
-                  <p className="text-sm text-gray-500">{new Date(post.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm text-gray-500">
+                    {formatDistanceToNow(new Date(post.created_at * 1000), { addSuffix: true })}
+                  </p>
                 </div>
                 <button className="text-gray-400 hover:text-gray-600">
                   
@@ -382,8 +396,13 @@ export default function DashboardPage() {
                 <div className="mb-3">
                   <p className="text-gray-900">
                     <span className="font-semibold mr-2">{post.user.name}</span>
-                    {post.caption}
+                    <br />
+                    {post.content}
                   </p>
+                </div>
+
+                <div className="mb-3">
+                  <span className="font-semibold mr-2">Komentar :</span>
                 </div>
 
                 {/* Comments */}
@@ -396,10 +415,12 @@ export default function DashboardPage() {
                     )}
                     <div className="space-y-1">
                       {post.comments.slice(-2).map((comment) => (
-                        <p key={comment.id} className="text-gray-900">
-                          <span className="font-semibold mr-2">{comment.user.name}</span>
-                          {comment.content}
-                        </p>
+                        <div key={comment.id} className="text-gray-900">
+                          <p>
+                            <span className="font-semibold mr-2">{comment.user.name}</span>
+                            {comment.content}
+                          </p>
+                        </div>
                       ))}
                     </div>
                   </div>

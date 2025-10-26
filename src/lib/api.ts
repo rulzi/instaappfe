@@ -151,6 +151,72 @@ class ApiClient {
     });
   }
 
+  async createPostWithFile(formData: FormData): Promise<ApiResponse<Post>> {
+    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.POSTS}`;
+    
+    const config: RequestInit = {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Accept': 'application/json',
+      },
+    };
+
+    // Add authorization header if token exists
+    const token = this.getToken();
+    if (token) {
+      config.headers = {
+        ...config.headers,
+        'Authorization': `Bearer ${token}`,
+      };
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        ...config,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: data.message || 'An error occurred',
+          errors: data.errors,
+        };
+      }
+
+      return {
+        success: true,
+        data: data.data || data,
+        message: data.message,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          return {
+            success: false,
+            message: 'Request timeout. Please try again.',
+          };
+        }
+        return {
+          success: false,
+          message: error.message || 'Network error occurred',
+        };
+      }
+      return {
+        success: false,
+        message: 'An unexpected error occurred',
+      };
+    }
+  }
+
   async likePost(postId: number): Promise<ApiResponse<{ is_liked: boolean; likes_count: number }>> {
     return this.request<{ is_liked: boolean; likes_count: number }>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/like`, {
       method: 'POST',

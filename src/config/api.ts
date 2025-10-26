@@ -61,17 +61,15 @@ export interface AuthResponse {
 export interface Post {
   id: number;
   user_id: number;
-  caption: string;
+  content: string;
   image_url: string;
   likes_count: number;
   comments_count: number;
-  created_at: string;
-  updated_at: string;
+  created_at: number;
+  updated_at: number;
   user: {
     id: number;
     name: string;
-    username: string;
-    avatar_url?: string;
   };
   comments: Comment[];
   is_liked: boolean;
@@ -82,18 +80,16 @@ export interface Comment {
   post_id: number;
   user_id: number;
   content: string;
-  created_at: string;
+  created_at: number;
   user: {
     id: number;
     name: string;
-    username: string;
-    avatar_url?: string;
   };
 }
 
 export interface CreatePostRequest {
-  caption: string;
-  image_url: string;
+  content: string;
+  image: string;
 }
 
 export interface CreateCommentRequest {
