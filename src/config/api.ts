@@ -1,12 +1,12 @@
 // API Configuration based on http://instaapp.test/docs?api-docs.json
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://instaapp.test/api',
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
   ENDPOINTS: {
     LOGIN: '/login',
     REGISTER: '/register',
     LOGOUT: '/logout',
     PROFILE: '/me',
-    POSTS: '/posts',
+    POSTS: '/post',
     USERS: '/users',
   },
   TIMEOUT: 10000, // 10 seconds
@@ -18,6 +18,10 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   message?: string;
   errors?: Record<string, string[]>;
+}
+
+export interface PostsResponse {
+  posts: Post[];
 }
 
 export interface UserResponse {
@@ -51,4 +55,56 @@ export interface AuthResponse {
   user: User;
   token: string;
   token_type: string;
+}
+
+// Post interfaces based on Instagram-like API
+export interface Post {
+  id: number;
+  user_id: number;
+  caption: string;
+  image_url: string;
+  likes_count: number;
+  comments_count: number;
+  created_at: string;
+  updated_at: string;
+  user: {
+    id: number;
+    name: string;
+    username: string;
+    avatar_url?: string;
+  };
+  comments: Comment[];
+  is_liked: boolean;
+}
+
+export interface Comment {
+  id: number;
+  post_id: number;
+  user_id: number;
+  content: string;
+  created_at: string;
+  user: {
+    id: number;
+    name: string;
+    username: string;
+    avatar_url?: string;
+  };
+}
+
+export interface CreatePostRequest {
+  caption: string;
+  image_url: string;
+}
+
+export interface CreateCommentRequest {
+  post_id: number;
+  content: string;
+}
+
+export interface LikePostRequest {
+  post_id: number;
+}
+
+export interface PostsResponse {
+  posts: Post[];
 }

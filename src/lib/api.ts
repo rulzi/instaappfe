@@ -1,4 +1,4 @@
-import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, User, UserResponse } from '@/config/api';
+import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, UserResponse, Post, Comment, CreatePostRequest, CreateCommentRequest, PostsResponse } from '@/config/api';
 
 class ApiClient {
   private baseURL: string;
@@ -140,15 +140,38 @@ class ApiClient {
   }
 
   // Posts methods
-  async getPosts(): Promise<ApiResponse<unknown[]>> {
-    return this.request<unknown[]>(API_CONFIG.ENDPOINTS.POSTS);
+  async getPosts(): Promise<ApiResponse<PostsResponse>> {
+    return this.request<PostsResponse>(API_CONFIG.ENDPOINTS.POSTS);
   }
 
-  async createPost(postData: unknown): Promise<ApiResponse<unknown>> {
-    return this.request<unknown>(API_CONFIG.ENDPOINTS.POSTS, {
+  async createPost(postData: CreatePostRequest): Promise<ApiResponse<Post>> {
+    return this.request<Post>(API_CONFIG.ENDPOINTS.POSTS, {
       method: 'POST',
       body: JSON.stringify(postData),
     });
+  }
+
+  async likePost(postId: number): Promise<ApiResponse<{ is_liked: boolean; likes_count: number }>> {
+    return this.request<{ is_liked: boolean; likes_count: number }>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/like`, {
+      method: 'POST',
+    });
+  }
+
+  async unlikePost(postId: number): Promise<ApiResponse<{ is_liked: boolean; likes_count: number }>> {
+    return this.request<{ is_liked: boolean; likes_count: number }>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/like`, {
+      method: 'DELETE',
+    });
+  }
+
+  async createComment(commentData: CreateCommentRequest): Promise<ApiResponse<Comment>> {
+    return this.request<Comment>(`${API_CONFIG.ENDPOINTS.POSTS}/${commentData.post_id}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content: commentData.content }),
+    });
+  }
+
+  async getPostComments(postId: number): Promise<ApiResponse<Comment[]>> {
+    return this.request<Comment[]>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/comments`);
   }
 }
 

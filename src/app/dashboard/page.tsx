@@ -1,14 +1,50 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import SafeImage from '@/components/SafeImage';
 import { apiClient } from '@/lib/api';
+import { Post, Comment } from '@/config/api';
+
+interface User {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    created_at: string;
+  };
+}
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [newComment, setNewComment] = useState<{ [key: number]: string }>({});
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch posts from API
+  const fetchPosts = useCallback(async () => {
+    setIsLoadingPosts(true);
+    setError(null);
+    try {
+      const response = await apiClient.getPosts();
+      console.log('API Response:', response);
+      if (response.success && response.data && response.data.posts && Array.isArray(response.data.posts)) {
+        setPosts(response.data.posts);
+      } else {
+        console.log('API failed or returned non-array data:', response);
+        setError(response.message || 'Failed to load posts');
+      }
+    } catch (error) {
+      console.log('API Error:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  }, []);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -17,25 +53,30 @@ export default function DashboardPage() {
       return;
     }
 
-    // Fetch user profile
-    const fetchProfile = async () => {
+    // Fetch user profile and posts
+    const fetchData = async () => {
       try {
-        const response = await apiClient.getProfile();
-        if (response.success && response.data) {
-          setUser(response.data);
+        const [profileResponse] = await Promise.all([
+          apiClient.getProfile(),
+        ]);
+        
+        if (profileResponse.success && profileResponse.data) {
+          setUser(profileResponse.data);
+          // Fetch posts after profile is loaded
+          await fetchPosts();
         } else {
           // If profile fetch fails, redirect to login
           router.push('/login');
         }
-      } catch (error) {
+      } catch {
         router.push('/login');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProfile();
-  }, [router]);
+    fetchData();
+  }, [router, fetchPosts]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return; // Prevent multiple clicks
@@ -55,6 +96,141 @@ export default function DashboardPage() {
       apiClient.removeToken();
       router.push('/login');
     }
+  };
+
+  const handleLike = async (postId: number) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    // Optimistic update
+    setPosts(posts.map(p => {
+      if (p.id === postId) {
+        return {
+          ...p,
+          is_liked: !p.is_liked,
+          likes_count: p.is_liked ? p.likes_count - 1 : p.likes_count + 1
+        };
+      }
+      return p;
+    }));
+
+    try {
+      const response = post.is_liked 
+        ? await apiClient.unlikePost(postId)
+        : await apiClient.likePost(postId);
+      
+      if (!response.success) {
+        // Revert optimistic update on failure
+        setPosts(posts.map(p => {
+          if (p.id === postId) {
+            return {
+              ...p,
+              is_liked: post.is_liked,
+              likes_count: post.likes_count
+            };
+          }
+          return p;
+        }));
+        setError(response.message || 'Failed to update like');
+      }
+    } catch {
+      // Revert optimistic update on error
+      setPosts(posts.map(p => {
+        if (p.id === postId) {
+          return {
+            ...p,
+            is_liked: post.is_liked,
+            likes_count: post.likes_count
+          };
+        }
+        return p;
+      }));
+      setError('Network error. Please try again.');
+    }
+  };
+
+  const handleComment = async (postId: number) => {
+    const commentText = newComment[postId]?.trim();
+    if (!commentText || !user) return;
+
+    const tempComment: Comment = {
+      id: Date.now(), // Temporary ID
+      post_id: postId,
+      user_id: user.user.id,
+      content: commentText,
+      created_at: new Date().toISOString(),
+      user: {
+        id: user.user.id,
+        name: user.user.name,
+        username: user.user.name.toLowerCase().replace(/\s+/g, '_'),
+      }
+    };
+
+    // Optimistic update
+    setPosts(posts.map(post => {
+      if (post.id === postId) {
+        return {
+          ...post,
+          comments: [...post.comments, tempComment],
+          comments_count: post.comments_count + 1
+        };
+      }
+      return post;
+    }));
+
+    setNewComment({ ...newComment, [postId]: '' });
+
+    try {
+      const response = await apiClient.createComment({
+        post_id: postId,
+        content: commentText
+      });
+
+      if (response.success && response.data) {
+        // Update with real comment data
+        setPosts(posts.map(post => {
+          if (post.id === postId) {
+            return {
+              ...post,
+              comments: post.comments.map(c => 
+                c.id === tempComment.id ? response.data! : c
+              )
+            };
+          }
+          return post;
+        }));
+      } else {
+        // Remove optimistic comment on failure
+        setPosts(posts.map(post => {
+          if (post.id === postId) {
+            return {
+              ...post,
+              comments: post.comments.filter(c => c.id !== tempComment.id),
+              comments_count: post.comments_count - 1
+            };
+          }
+          return post;
+        }));
+        setError(response.message || 'Failed to add comment');
+      }
+    } catch {
+      // Remove optimistic comment on error
+      setPosts(posts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            comments: post.comments.filter(c => c.id !== tempComment.id),
+            comments_count: post.comments_count - 1
+          };
+        }
+        return post;
+      }));
+      setError('Network error. Please try again.');
+    }
+  };
+
+  const handleCommentChange = (postId: number, value: string) => {
+    setNewComment({ ...newComment, [postId]: value });
   };
 
   if (isLoading) {
@@ -102,29 +278,164 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Dashboard</h2>
-            <p className="text-gray-600 mb-4">
-              Welcome to your InstaApp dashboard! You have successfully logged in.
-            </p>
-            
-            {user && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">User Information</h3>
-                <div className="space-y-2">
-                  <p><span className="font-medium">Name:</span> {user.user.name}</p>
-                  <p><span className="font-medium">Email:</span> {user.user.email}</p>
-                  <p><span className="font-medium">Member since:</span> {new Date(user.user.created_at).toLocaleDateString()}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6 grid grid-cols-1">
-              
+      <main className="max-w-2xl mx-auto py-6 px-4">
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+            <div className="flex space-x-2 mt-2">
+              <button 
+                onClick={() => setError(null)}
+                className="text-red-500 text-xs hover:underline"
+              >
+                Dismiss
+              </button>
+              <button 
+                onClick={fetchPosts}
+                className="text-blue-500 text-xs hover:underline"
+              >
+                Retry
+              </button>
             </div>
           </div>
+        )}
+
+        {/* Loading Posts */}
+        {isLoadingPosts && (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading posts...</p>
+          </div>
+        )}
+
+        {/* Instagram-like Feed */}
+        <div className="space-y-6">
+          {Array.isArray(posts) && posts.length > 0 ? posts.map((post) => (
+            <div key={post.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
+              {/* Post Header */}
+              <div className="flex items-center p-4 border-b border-gray-100">
+                <SafeImage
+                  src={`https://ui-avatars.com/api/?name=${post.user.name}&background=random`}
+                  alt={post.user.name}
+                  width={40}
+                  height={40}
+                  className="w-10 h-10 rounded-full object-cover mr-3"
+                  useProxy={false}
+                  fallbackSrc="https://ui-avatars.com/api/?name=User&background=random"
+                />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">{post.user.name}</h3>
+                  <p className="text-sm text-gray-500">{new Date(post.created_at).toLocaleDateString()}</p>
+                </div>
+                <button className="text-gray-400 hover:text-gray-600">
+                  
+                </button>
+              </div>
+
+              {/* Post Image */}
+              <div className="relative">
+                <SafeImage
+                  src={post.image_url}
+                  alt={`Post by ${post.user.name}`}
+                  width={600}
+                  height={600}
+                  className="w-full h-auto object-cover"
+                  useProxy={true}
+                  fallbackSrc="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=600&fit=crop"
+                />
+              </div>
+
+              {/* Post Actions */}
+              <div className="p-4">
+                <div className="flex items-center space-x-4 mb-3">
+                  <button
+                    onClick={() => handleLike(post.id)}
+                    className={`transition-colors ${
+                      post.is_liked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
+                    }`}
+                  >
+                    <svg
+                      className="w-7 h-7"
+                      fill={post.is_liked ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                      />
+                    </svg>
+                  </button>
+                  <div className="flex-1"></div>
+                </div>
+
+                {/* Likes Count */}
+                <div className="mb-2">
+                  <p className="font-semibold text-gray-900">
+                    {post.likes_count.toLocaleString()} {post.likes_count === 1 ? 'like' : 'likes'}
+                  </p>
+                </div>
+
+                {/* Caption */}
+                <div className="mb-3">
+                  <p className="text-gray-900">
+                    <span className="font-semibold mr-2">{post.user.name}</span>
+                    {post.caption}
+                  </p>
+                </div>
+
+                {/* Comments */}
+                {post.comments.length > 0 && (
+                  <div className="mb-3">
+                    {post.comments.length > 2 && (
+                      <button className="text-gray-500 text-sm mb-2">
+                        View all {post.comments.length} comments
+                      </button>
+                    )}
+                    <div className="space-y-1">
+                      {post.comments.slice(-2).map((comment) => (
+                        <p key={comment.id} className="text-gray-900">
+                          <span className="font-semibold mr-2">{comment.user.name}</span>
+                          {comment.content}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Comment Input */}
+                <div className="flex items-center space-x-2 pt-3 border-t border-gray-100">
+                  <input
+                    type="text"
+                    placeholder="Add a comment..."
+                    value={newComment[post.id] || ''}
+                    onChange={(e) => handleCommentChange(post.id, e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleComment(post.id)}
+                    className="flex-1 text-sm border-none outline-none placeholder-gray-500"
+                  />
+                  <button
+                    onClick={() => handleComment(post.id)}
+                    disabled={!newComment[post.id]?.trim()}
+                    className="text-blue-500 font-semibold text-sm disabled:text-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Post
+                  </button>
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No posts yet</h3>
+              <p className="text-gray-500">Be the first to share something amazing!</p>
+            </div>
+          )}
         </div>
       </main>
     </div>
