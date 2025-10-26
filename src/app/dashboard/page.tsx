@@ -8,6 +8,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -37,12 +38,22 @@ export default function DashboardPage() {
   }, [router]);
 
   const handleLogout = async () => {
+    if (isLoggingOut) return; // Prevent multiple clicks
+    
+    const confirmed = window.confirm('Are you sure you want to logout?');
+    if (!confirmed) return;
+    
+    setIsLoggingOut(true);
+    
     try {
+      // Call logout API
       await apiClient.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      router.push('/');
+      // Always clear the token and redirect to login
+      apiClient.removeToken();
+      router.push('/login');
     }
   };
 
@@ -68,12 +79,23 @@ export default function DashboardPage() {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Welcome, {user?.name || 'User'}!</span>
+              <span className="text-gray-700">Welcome, {user?.user.name || 'User'}!</span>
               <button
                 onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+                disabled={isLoggingOut}
+                className="bg-red-500 hover:bg-red-600 disabled:bg-red-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
               >
-                Logout
+                {isLoggingOut ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Logging out...</span>
+                  </>
+                ) : (
+                  'Logout'
+                )}
               </button>
             </div>
           </div>
@@ -92,26 +114,15 @@ export default function DashboardPage() {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="text-lg font-medium text-gray-800 mb-2">User Information</h3>
                 <div className="space-y-2">
-                  <p><span className="font-medium">Name:</span> {user.name}</p>
-                  <p><span className="font-medium">Email:</span> {user.email}</p>
-                  <p><span className="font-medium">Member since:</span> {new Date(user.created_at).toLocaleDateString()}</p>
+                  <p><span className="font-medium">Name:</span> {user.user.name}</p>
+                  <p><span className="font-medium">Email:</span> {user.user.email}</p>
+                  <p><span className="font-medium">Member since:</span> {new Date(user.user.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
             )}
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-purple-50 rounded-lg p-4">
-                <h3 className="text-lg font-medium text-purple-800">Posts</h3>
-                <p className="text-purple-600">Manage your posts and content</p>
-              </div>
-              <div className="bg-pink-50 rounded-lg p-4">
-                <h3 className="text-lg font-medium text-pink-800">Profile</h3>
-                <p className="text-pink-600">Update your profile information</p>
-              </div>
-              <div className="bg-indigo-50 rounded-lg p-4">
-                <h3 className="text-lg font-medium text-indigo-800">Settings</h3>
-                <p className="text-indigo-600">Configure your account settings</p>
-              </div>
+            <div className="mt-6 grid grid-cols-1">
+              
             </div>
           </div>
         </div>

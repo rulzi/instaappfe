@@ -1,4 +1,4 @@
-import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, User } from '@/config/api';
+import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, User, UserResponse } from '@/config/api';
 
 class ApiClient {
   private baseURL: string;
@@ -135,8 +135,8 @@ class ApiClient {
   }
 
   // User methods
-  async getProfile(): Promise<ApiResponse<User>> {
-    return this.request<User>(API_CONFIG.ENDPOINTS.PROFILE);
+  async getProfile(): Promise<ApiResponse<UserResponse>> {
+    return this.request<UserResponse>(API_CONFIG.ENDPOINTS.PROFILE);
   }
 
   // Posts methods

@@ -1,11 +1,11 @@
 // API Configuration based on http://instaapp.test/docs?api-docs.json
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://instaapp.test/api',
   ENDPOINTS: {
     LOGIN: '/login',
     REGISTER: '/register',
     LOGOUT: '/logout',
-    PROFILE: '/user/profile',
+    PROFILE: '/me',
     POSTS: '/posts',
     USERS: '/users',
   },
@@ -18,6 +18,10 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   message?: string;
   errors?: Record<string, string[]>;
+}
+
+export interface UserResponse {
+  user: User;
 }
 
 // User model based on API docs
