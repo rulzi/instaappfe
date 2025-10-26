@@ -1,4 +1,4 @@
-import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, UserResponse, Post, Comment, CreatePostRequest, CreateCommentRequest, PostsResponse, CommentResponse } from '@/config/api';
+import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, UserResponse, CreatePostRequest, CreateCommentRequest, PostsResponse, CommentResponse } from '@/config/api';
 
 class ApiClient {
   private baseURL: string;
@@ -140,8 +140,12 @@ class ApiClient {
   }
 
   // Posts methods
-  async getPosts(): Promise<ApiResponse<PostsResponse>> {
-    return this.request<PostsResponse>(API_CONFIG.ENDPOINTS.POSTS);
+  async getPosts(page: number = 1, perPage: number = 10): Promise<ApiResponse<PostsResponse>> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+    });
+    return this.request<PostsResponse>(`${API_CONFIG.ENDPOINTS.POSTS}?${params}`);
   }
 
   async createPost(postData: CreatePostRequest): Promise<ApiResponse<PostsResponse>> {

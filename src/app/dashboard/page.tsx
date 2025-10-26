@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import SafeImage from '@/components/SafeImage';
 import PostForm from '@/components/PostForm';
 import { apiClient } from '@/lib/api';
-import { Post, Comment } from '@/config/api';
+import { Post, Comment, Pagination } from '@/config/api';
 
 interface User {
   user: {
@@ -25,18 +25,24 @@ export default function DashboardPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [newComment, setNewComment] = useState<{ [key: number]: string }>({});
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<{ [key: number]: boolean }>({});
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Fetch posts from API
+  // Fetch initial posts from API
   const fetchPosts = useCallback(async () => {
     setIsLoadingPosts(true);
     setError(null);
     try {
-      const response = await apiClient.getPosts();
+      const response = await apiClient.getPosts(1, 10);
       console.log('API Response:', response);
       if (response.success && response.data && response.data.posts && Array.isArray(response.data.posts)) {
         setPosts(response.data.posts);
+        setPagination(response.data.pagination);
+        setHasMorePosts(response.data.pagination.current_page < response.data.pagination.last_page);
       } else {
         console.log('API failed or returned non-array data:', response);
         setError(response.message || 'Failed to load posts');
@@ -48,6 +54,30 @@ export default function DashboardPage() {
       setIsLoadingPosts(false);
     }
   }, []);
+
+  // Load more posts for infinite scroll
+  const loadMorePosts = useCallback(async () => {
+    if (!pagination || !hasMorePosts || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const nextPage = pagination.current_page + 1;
+      const response = await apiClient.getPosts(nextPage, 10);
+      
+      if (response.success && response.data && response.data.posts && Array.isArray(response.data.posts)) {
+        setPosts(prevPosts => [...prevPosts, ...response.data!.posts]);
+        setPagination(response.data!.pagination);
+        setHasMorePosts(response.data!.pagination.current_page < response.data!.pagination.last_page);
+      } else {
+        setError(response.message || 'Failed to load more posts');
+      }
+    } catch (error) {
+      console.log('API Error:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [pagination, hasMorePosts, isLoadingMore]);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -80,6 +110,33 @@ export default function DashboardPage() {
 
     fetchData();
   }, [router, fetchPosts]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const target = entries[0];
+        if (target.isIntersecting && hasMorePosts && !isLoadingMore) {
+          loadMorePosts();
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px',
+      }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMorePosts, isLoadingMore, loadMorePosts]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return; // Prevent multiple clicks
@@ -243,7 +300,9 @@ export default function DashboardPage() {
   };
 
   const handlePostCreated = () => {
-    // Refresh posts after creating a new one
+    // Reset pagination and refresh posts after creating a new one
+    setPagination(null);
+    setHasMorePosts(true);
     fetchPosts();
   };
 
@@ -330,7 +389,9 @@ export default function DashboardPage() {
 
         {/* Instagram-like Feed */}
         <div className="space-y-6">
-          {Array.isArray(posts) && posts.length > 0 ? posts.map((post) => (
+          {Array.isArray(posts) && posts.length > 0 ? (
+            <>
+              {posts.map((post) => (
             <div key={post.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
               {/* Post Header */}
               <div className="flex items-center p-4 border-b border-gray-100">
@@ -471,7 +532,32 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          )) : (
+              ))}
+
+              {/* Infinite Scroll Trigger */}
+              {hasMorePosts && (
+                <div ref={loadMoreRef} className="py-8">
+                  {isLoadingMore ? (
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading more posts...</p>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p className="text-gray-500">Scroll down to load more posts</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* No more posts indicator */}
+              {!hasMorePosts && posts.length > 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">You&apos;ve reached the end of the feed!</p>
+                </div>
+              )}
+            </>
+          ) : (
             <div className="text-center py-12">
               <div className="text-gray-400 mb-4">
                 <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
