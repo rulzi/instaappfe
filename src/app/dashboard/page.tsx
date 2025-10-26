@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [newComment, setNewComment] = useState<{ [key: number]: string }>({});
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<{ [key: number]: boolean }>({});
 
   // Fetch posts from API
   const fetchPosts = useCallback(async () => {
@@ -104,8 +105,8 @@ export default function DashboardPage() {
     const post = posts.find(p => p.id === postId);
     if (!post) return;
 
-    // Optimistic update
-    setPosts(posts.map(p => {
+    // Optimistic update using functional state update
+    setPosts(currentPosts => currentPosts.map(p => {
       if (p.id === postId) {
         return {
           ...p,
@@ -122,8 +123,8 @@ export default function DashboardPage() {
         : await apiClient.likePost(postId);
       
       if (!response.success) {
-        // Revert optimistic update on failure
-        setPosts(posts.map(p => {
+        // Revert optimistic update on failure using functional state update
+        setPosts(currentPosts => currentPosts.map(p => {
           if (p.id === postId) {
             return {
               ...p,
@@ -136,8 +137,8 @@ export default function DashboardPage() {
         setError(response.message || 'Failed to update like');
       }
     } catch {
-      // Revert optimistic update on error
-      setPosts(posts.map(p => {
+      // Revert optimistic update on error using functional state update
+      setPosts(currentPosts => currentPosts.map(p => {
         if (p.id === postId) {
           return {
             ...p,
@@ -156,19 +157,19 @@ export default function DashboardPage() {
     if (!commentText || !user) return;
 
     const tempComment: Comment = {
-      id: Date.now(), // Temporary ID
+      id: Date.now() + Math.random(), // More unique temporary ID
       post_id: postId,
       user_id: user.user.id,
       content: commentText,
-      created_at: new Date().getTime(),
+      created_at: Math.floor(Date.now() / 1000), // Convert to Unix timestamp in seconds
       user: {
         id: user.user.id,
         name: user.user.name,
       }
     };
 
-    // Optimistic update
-    setPosts(posts.map(post => {
+    // Optimistic update using functional state update
+    setPosts(currentPosts => currentPosts.map(post => {
       if (post.id === postId) {
         return {
           ...post,
@@ -188,21 +189,21 @@ export default function DashboardPage() {
       });
 
       if (response.success && response.data) {
-        // Update with real comment data
-        setPosts(posts.map(post => {
+        // Update with real comment data using functional state update
+        setPosts(currentPosts => currentPosts.map(post => {
           if (post.id === postId) {
             return {
               ...post,
               comments: post.comments.map(c => 
-                c.id === tempComment.id ? response.data! : c
+                c.id === tempComment.id ? response.data!.comment : c
               )
             };
           }
           return post;
         }));
       } else {
-        // Remove optimistic comment on failure
-        setPosts(posts.map(post => {
+        // Remove optimistic comment on failure using functional state update
+        setPosts(currentPosts => currentPosts.map(post => {
           if (post.id === postId) {
             return {
               ...post,
@@ -215,8 +216,8 @@ export default function DashboardPage() {
         setError(response.message || 'Failed to add comment');
       }
     } catch {
-      // Remove optimistic comment on error
-      setPosts(posts.map(post => {
+      // Remove optimistic comment on error using functional state update
+      setPosts(currentPosts => currentPosts.map(post => {
         if (post.id === postId) {
           return {
             ...post,
@@ -232,6 +233,13 @@ export default function DashboardPage() {
 
   const handleCommentChange = (postId: number, value: string) => {
     setNewComment({ ...newComment, [postId]: value });
+  };
+
+  const toggleComments = (postId: number) => {
+    setExpandedComments(prev => ({
+      ...prev,
+      [postId]: !prev[postId]
+    }));
   };
 
   const handlePostCreated = () => {
@@ -409,20 +417,37 @@ export default function DashboardPage() {
                 {post.comments.length > 0 && (
                   <div className="mb-3">
                     {post.comments.length > 2 && (
-                      <button className="text-gray-500 text-sm mb-2">
-                        View all {post.comments.length} comments
+                      <button 
+                        onClick={() => toggleComments(post.id)}
+                        className="text-gray-500 text-sm mb-2 hover:text-gray-700 transition-colors cursor-pointer"
+                      >
+                        {expandedComments[post.id] 
+                          ? 'Hide comments' 
+                          : `View all ${post.comments.length} comments`
+                        }
                       </button>
                     )}
-                    <div className="space-y-1">
-                      {post.comments.slice(-2).map((comment) => (
+                    <div className={`space-y-1 ${expandedComments[post.id] ? 'max-h-96 overflow-y-auto' : ''}`}>
+                      {(expandedComments[post.id] ? post.comments : post.comments.slice(-2)).map((comment) => (
                         <div key={comment.id} className="text-gray-900">
                           <p>
-                            <span className="font-semibold mr-2">{comment.user.name}</span>
+                            <span className="font-semibold mr-2">{comment.user?.name || 'Unknown User'}</span>
                             {comment.content}
                           </p>
                         </div>
                       ))}
                     </div>
+
+                    {expandedComments[post.id] && post.comments.length > 5 && (
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <button 
+                          onClick={() => toggleComments(post.id)}
+                          className="text-gray-500 text-sm hover:text-gray-700 transition-colors"
+                        >
+                          Show less
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

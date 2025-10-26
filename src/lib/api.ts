@@ -1,4 +1,4 @@
-import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, UserResponse, Post, Comment, CreatePostRequest, CreateCommentRequest, PostsResponse } from '@/config/api';
+import { API_CONFIG, ApiResponse, LoginRequest, RegisterRequest, AuthResponse, UserResponse, Post, Comment, CreatePostRequest, CreateCommentRequest, PostsResponse, CommentResponse } from '@/config/api';
 
 class ApiClient {
   private baseURL: string;
@@ -144,14 +144,14 @@ class ApiClient {
     return this.request<PostsResponse>(API_CONFIG.ENDPOINTS.POSTS);
   }
 
-  async createPost(postData: CreatePostRequest): Promise<ApiResponse<Post>> {
-    return this.request<Post>(API_CONFIG.ENDPOINTS.POSTS, {
+  async createPost(postData: CreatePostRequest): Promise<ApiResponse<PostsResponse>> {
+    return this.request<PostsResponse>(API_CONFIG.ENDPOINTS.POSTS, {
       method: 'POST',
       body: JSON.stringify(postData),
     });
   }
 
-  async createPostWithFile(formData: FormData): Promise<ApiResponse<Post>> {
+  async createPostWithFile(formData: FormData): Promise<ApiResponse<PostsResponse>> {
     const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.POSTS}`;
     
     const config: RequestInit = {
@@ -229,15 +229,15 @@ class ApiClient {
     });
   }
 
-  async createComment(commentData: CreateCommentRequest): Promise<ApiResponse<Comment>> {
-    return this.request<Comment>(`${API_CONFIG.ENDPOINTS.POSTS}/${commentData.post_id}/comment`, {
+  async createComment(commentData: CreateCommentRequest): Promise<ApiResponse<CommentResponse>> {
+    return this.request<CommentResponse>(`${API_CONFIG.ENDPOINTS.POSTS}/${commentData.post_id}/comment`, {
       method: 'POST',
       body: JSON.stringify({ content: commentData.content }),
     });
   }
 
-  async getPostComments(postId: number): Promise<ApiResponse<Comment[]>> {
-    return this.request<Comment[]>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/comment`);
+  async getPostComments(postId: number): Promise<ApiResponse<CommentResponse[]>> {
+    return this.request<CommentResponse[]>(`${API_CONFIG.ENDPOINTS.POSTS}/${postId}/comment`);
   }
 }
 

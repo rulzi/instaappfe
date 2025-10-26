@@ -75,6 +75,10 @@ export interface Post {
   is_liked: boolean;
 }
 
+export interface CommentResponse {
+  comment: Comment;
+}
+
 export interface Comment {
   id: number;
   post_id: number;
