@@ -42,6 +42,18 @@ export interface User {
   email: string;
   created_at: string;
   updated_at: string;
+  permissions: Permissions;
+}
+
+export interface Permissions {
+  can_create_post: boolean;
+  can_update_post: boolean;
+  can_delete_post: boolean;
+  can_create_comment: boolean;
+  can_update_comment: boolean;
+  can_delete_comment: boolean;
+  can_like_post: boolean;
+  can_unlike_post: boolean;
 }
 
 // Request interfaces based on API docs

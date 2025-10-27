@@ -6,16 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import SafeImage from '@/components/SafeImage';
 import PostForm from '@/components/PostForm';
 import { apiClient } from '@/lib/api';
-import { Post, Comment, Pagination } from '@/config/api';
-
-interface User {
-  user: {
-    id: number;
-    name: string;
-    email: string;
-    created_at: string;
-  };
-}
+import { Post, Comment, Pagination, User } from '@/config/api';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -94,7 +85,7 @@ export default function DashboardPage() {
         ]);
         
         if (profileResponse.success && profileResponse.data) {
-          setUser(profileResponse.data);
+          setUser(profileResponse.data.user);
           // Fetch posts after profile is loaded
           await fetchPosts();
         } else {
@@ -159,6 +150,12 @@ export default function DashboardPage() {
   };
 
   const handleLike = async (postId: number) => {
+    if (!user?.permissions.can_like_post) {
+      window.scrollTo(0, 0);
+      setError('You do not have permission to like posts.');
+      return;
+    }
+    
     const post = posts.find(p => p.id === postId);
     if (!post) return;
 
@@ -216,12 +213,12 @@ export default function DashboardPage() {
     const tempComment: Comment = {
       id: Date.now() + Math.random(), // More unique temporary ID
       post_id: postId,
-      user_id: user.user.id,
+      user_id: user.id,
       content: commentText,
       created_at: Math.floor(Date.now() / 1000), // Convert to Unix timestamp in seconds
       user: {
-        id: user.user.id,
-        name: user.user.name,
+        id: user.id,
+        name: user.name,
       }
     };
 
@@ -328,7 +325,7 @@ export default function DashboardPage() {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Welcome, {user?.user.name || 'User'}!</span>
+              <span className="text-gray-700">Welcome, {user?.name || 'User'}!</span>
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
@@ -382,10 +379,16 @@ export default function DashboardPage() {
         )}
 
         {/* Post Creation Form */}
-        <PostForm 
-          onPostCreated={handlePostCreated}
-          onError={setError}
-        />
+        {user?.permissions.can_create_post ? (
+          <PostForm 
+            onPostCreated={handlePostCreated}
+            onError={setError}
+          />
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-500">You do not have permission to create posts.</p>
+          </div>
+        )}
 
         {/* Instagram-like Feed */}
         <div className="space-y-6">
@@ -513,6 +516,7 @@ export default function DashboardPage() {
                 )}
 
                 {/* Comment Input */}
+                {user?.permissions.can_create_comment ? (
                 <div className="flex items-center space-x-2 pt-3 border-t border-gray-100">
                   <input
                     type="text"
@@ -530,6 +534,11 @@ export default function DashboardPage() {
                     Post
                   </button>
                 </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">You do not have permission to create comments.</p>
+                  </div>
+                )}
               </div>
             </div>
               ))}
